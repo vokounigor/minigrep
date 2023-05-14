@@ -11,13 +11,20 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn build<'a>(args: &'a [String]) -> Result<Self, &'static str> {
-        if args.len() < 3 {
-            return Err("Not enough arguments (min is 2)");
-        }
+    pub fn build(mut args: impl Iterator<Item = String>) -> Result<Self, &'static str> {
+        // Skip the first argument as it is the current file path
+        // This argument always exists
+        args.next();
 
-        let file_path = &args[1];
-        let query = &args[2];
+        let file_path = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Didn't find file_path parameter"),
+        };
+
+        let query = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Didn't find query parameter"),
+        };
 
         if file_path.starts_with('-') {
             return Err("First argument must be a file path");
@@ -25,9 +32,15 @@ impl Config {
 
         let mut ignore_case = env::var(IGNORE_CASE).is_ok();
 
-        if args.contains(&IGNORE_CASE_SHORTHAND.to_string()) {
-            ignore_case = true;
-        }
+        // Check for the optional "-c" flag
+        match args.next() {
+            Some(arg) => {
+                if arg.contains(&IGNORE_CASE_SHORTHAND.to_string()) {
+                    ignore_case = true;
+                }
+            }
+            None => (),
+        };
 
         Ok(Config {
             file_path: file_path.to_string(),
@@ -55,14 +68,16 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 
 /// Case-sensitive search for a query within contents
 pub fn search<'a>(contents: &'a str, query: &str) -> Vec<&'a str> {
-    contents.lines()
+    contents
+        .lines()
         .filter(|line| line.contains(query))
         .collect()
 }
 
 /// Case-insensitive search for a query within contents
 pub fn search_case_insensitive<'a>(contents: &'a str, query: &str) -> Vec<&'a str> {
-    contents.lines()
+    contents
+        .lines()
         .filter(|line| line.to_lowercase().contains(&query.to_lowercase()))
         .collect()
 }
